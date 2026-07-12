@@ -81,14 +81,18 @@ export async function setVehicleStatus(_prev: ActionState, formData: FormData): 
 export async function deleteVehicle(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireWrite("vehicles");
   const id = String(formData.get("id"));
-  const tripCount = await prisma.trip.count({ where: { vehicleId: id } });
-  if (tripCount > 0) return { error: "Vehicle has trip history; retire it instead of deleting." };
-  await prisma.$transaction([
-    prisma.maintenanceLog.deleteMany({ where: { vehicleId: id } }),
-    prisma.fuelLog.deleteMany({ where: { vehicleId: id } }),
-    prisma.expense.deleteMany({ where: { vehicleId: id } }),
-    prisma.vehicle.delete({ where: { id } }),
+  // Financial and operational records are an audit trail — a vehicle with any
+  // history must be retired, never deleted. Deletion is only for entry mistakes.
+  const [trips, fuel, expenses, maintenance] = await Promise.all([
+    prisma.trip.count({ where: { vehicleId: id } }),
+    prisma.fuelLog.count({ where: { vehicleId: id } }),
+    prisma.expense.count({ where: { vehicleId: id } }),
+    prisma.maintenanceLog.count({ where: { vehicleId: id } }),
   ]);
+  if (trips + fuel + expenses + maintenance > 0) {
+    return { error: "Vehicle has trip, fuel, expense or maintenance history; retire it instead of deleting." };
+  }
+  await prisma.vehicle.delete({ where: { id } });
   revalidatePath("/vehicles");
   revalidatePath("/");
 }
