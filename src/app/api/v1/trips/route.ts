@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiError, requireApiSession, requireApiWrite, parsePagination, isEnum, num, str } from "@/lib/api";
 import { assertDispatchable } from "@/lib/tripRules";
@@ -73,18 +74,27 @@ export async function POST(req: NextRequest) {
   const violation = assertDispatchable(vehicle, driver, cargoWeightKg);
   if (violation) return apiError(422, violation);
 
-  const count = await prisma.trip.count();
-  const trip = await prisma.trip.create({
-    data: {
-      refNo: `TRP-${String(count + 1).padStart(4, "0")}`,
-      source,
-      destination,
-      vehicleId,
-      driverId,
-      cargoWeightKg,
-      plannedKm,
-      revenue,
-    },
-  });
-  return NextResponse.json({ data: trip }, { status: 201 });
+  // Concurrent creates can race on the sequential refNo; the unique
+  // constraint catches the collision and we retry with a fresh count.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const count = await prisma.trip.count();
+      const trip = await prisma.trip.create({
+        data: {
+          refNo: `TRP-${String(count + 1).padStart(4, "0")}`,
+          source,
+          destination,
+          vehicleId,
+          driverId,
+          cargoWeightKg,
+          plannedKm,
+          revenue,
+        },
+      });
+      return NextResponse.json({ data: trip }, { status: 201 });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 4) continue;
+      throw e;
+    }
+  }
 }
