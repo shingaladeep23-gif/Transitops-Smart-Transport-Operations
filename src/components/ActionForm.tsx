@@ -9,15 +9,34 @@ type Props = {
   className?: string;
   resetOnSuccess?: boolean;
   confirmMessage?: string;
+  onSuccess?: () => void;
 };
 
-export default function ActionForm({ action, children, className, resetOnSuccess, confirmMessage }: Props) {
+export default function ActionForm({
+  action,
+  children,
+  className,
+  resetOnSuccess,
+  confirmMessage,
+  onSuccess,
+}: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  // Only fire success behavior after a real submission has completed,
+  // not on initial mount.
+  const submitted = useRef(false);
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
   const hadError = state?.error;
 
+  if (pending) submitted.current = true;
+
   useEffect(() => {
-    if (!pending && !hadError && resetOnSuccess) formRef.current?.reset();
+    if (!pending && submitted.current && !hadError) {
+      submitted.current = false;
+      if (resetOnSuccess) formRef.current?.reset();
+      onSuccessRef.current?.();
+    }
   }, [pending, hadError, resetOnSuccess]);
 
   return (

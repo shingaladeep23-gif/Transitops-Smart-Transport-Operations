@@ -28,6 +28,9 @@ export default function CompleteTripForm({ tripId, startOdometerKm }: { tripId: 
           <input name="fuelUsedL" type="number" step="any" min="0.1" required placeholder="Fuel used (L)" className={inputCls} />
           <input name="fuelCost" type="number" step="any" min="0" placeholder="Fuel cost (₹)" className={inputCls} />
         </div>
+        <label className="block text-xs text-zinc-500">Proof of delivery (optional)</label>
+        <input name="podReceiver" placeholder="Received by (name)" className={inputCls} />
+        <input name="podNote" placeholder="Delivery note" className={inputCls} />
         <div className="flex gap-2">
           <button type="submit" className={btnPrimary}>Confirm Completion</button>
           <button type="button" onClick={() => setOpen(false)} className={btnGhost}>Back</button>

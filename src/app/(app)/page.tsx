@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { Card, KpiCard, PageHeader, StatusBadge, Table, Th, Td } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
+import AutoRefresh from "@/components/AutoRefresh";
 
 export const metadata = { title: "Dashboard — TransitOps" };
 
@@ -50,7 +51,8 @@ export default async function DashboardPage({
 
   return (
     <>
-      <PageHeader title={`Welcome back, ${session.name.split(" ")[0]}`} subtitle="Fleet operations at a glance" />
+      <AutoRefresh seconds={15} />
+      <PageHeader title={`Welcome back, ${session.name.split(" ")[0]}`} subtitle="Fleet operations at a glance · live, refreshes every 15s" />
 
       <form className="mb-6 flex flex-wrap gap-2" method="get">
         <select name="type" defaultValue={type ?? ""} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800">

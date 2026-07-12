@@ -4,18 +4,54 @@ import { createDriver, setDriverStatus, deleteDriver } from "@/lib/actions/drive
 import ActionForm from "@/components/ActionForm";
 import { PageHeader, StatusBadge, Table, Th, Td, Card, inputCls, btnPrimary, btnGhost, btnDanger } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
+import { SearchBar } from "@/components/SearchSort";
+import EditDriverForm from "@/components/EditDriverForm";
 
 export const metadata = { title: "Drivers — TransitOps" };
 
-export default async function DriversPage() {
+export default async function DriversPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; sort?: string }>;
+}) {
   const session = await requireSession();
   const writable = canWrite(session.role, "drivers");
-  const drivers = await prisma.driver.findMany({ orderBy: { name: "asc" } });
+  const { q, sort } = await searchParams;
+
+  const orderBy =
+    sort === "safety"
+      ? { safetyScore: "asc" as const }
+      : sort === "expiry"
+        ? { licenseExpiry: "asc" as const }
+        : { name: "asc" as const };
+
+  const drivers = await prisma.driver.findMany({
+    where: q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { licenseNo: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : undefined,
+    orderBy,
+  });
   const now = new Date();
 
   return (
     <>
-      <PageHeader title="Driver Management" subtitle={`${drivers.length} drivers on record`} />
+      <PageHeader title="Driver Management" subtitle={`${drivers.length} drivers${q ? ` matching “${q}”` : " on record"}`} />
+      <SearchBar
+        placeholder="Search name, license, phone…"
+        q={q}
+        sort={sort}
+        basePath="/drivers"
+        sortOptions={[
+          { value: "safety", label: "lowest safety score" },
+          { value: "expiry", label: "soonest license expiry" },
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -55,6 +91,17 @@ export default async function DriversPage() {
                     {writable && (
                       <Td>
                         <div className="flex flex-wrap gap-1.5">
+                          <EditDriverForm
+                            driver={{
+                              id: d.id,
+                              name: d.name,
+                              licenseNo: d.licenseNo,
+                              licenseCategory: d.licenseCategory,
+                              licenseExpiry: d.licenseExpiry.toISOString().slice(0, 10),
+                              phone: d.phone,
+                              safetyScore: d.safetyScore,
+                            }}
+                          />
                           {d.status !== "ON_TRIP" && (
                             <>
                               {d.status !== "AVAILABLE" && (

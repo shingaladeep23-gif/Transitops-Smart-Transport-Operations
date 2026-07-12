@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Roles entity: modeled as a native enum rather than a lookup table —
+// four fixed roles whose behavior lives in the RBAC matrix (lib/auth.ts).
+// The database rejects invalid roles and no join is needed per request.
 enum Role {
   FLEET_MANAGER
   DRIVER
