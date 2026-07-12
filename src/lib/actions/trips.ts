@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireWrite } from "@/lib/auth";
 import type { ActionState } from "./auth";
-import type { Driver, Vehicle } from "@prisma/client";
+import { CHECKLIST_ITEMS } from "@/lib/checklist";
+import { assertDispatchable } from "@/lib/tripRules";
 
 function revalidateAll() {
   revalidatePath("/trips");
@@ -13,23 +14,13 @@ function revalidateAll() {
   revalidatePath("/");
 }
 
-// Mandatory business rules: a trip can only involve an Available vehicle
-// (never Retired/In Shop/On Trip), an Available driver with a valid license,
-// and cargo within the vehicle's capacity.
-function assertDispatchable(vehicle: Vehicle, driver: Driver, cargoWeightKg: number): string | null {
-  if (vehicle.status !== "AVAILABLE") {
-    return `Vehicle ${vehicle.registrationNo} is not available (status: ${vehicle.status.replace("_", " ")}).`;
+function parseChecklist(formData: FormData): { checklist: string } | { error: string } {
+  const checked = formData.getAll("checklist").map(String);
+  const missing = CHECKLIST_ITEMS.filter((i) => !checked.includes(i));
+  if (missing.length > 0) {
+    return { error: `Pre-dispatch vehicle check incomplete: ${missing.join(", ")}.` };
   }
-  if (driver.status !== "AVAILABLE") {
-    return `Driver ${driver.name} is not available (status: ${driver.status.replace("_", " ")}).`;
-  }
-  if (driver.licenseExpiry < new Date()) {
-    return `Driver ${driver.name}'s license expired on ${driver.licenseExpiry.toISOString().slice(0, 10)}.`;
-  }
-  if (cargoWeightKg > vehicle.maxLoadKg) {
-    return `Cargo weight ${cargoWeightKg} kg exceeds ${vehicle.registrationNo}'s max capacity of ${vehicle.maxLoadKg} kg.`;
-  }
-  return null;
+  return { checklist: CHECKLIST_ITEMS.join(", ") };
 }
 
 async function nextRefNo(): Promise<string> {
@@ -67,9 +58,17 @@ export async function createTrip(_prev: ActionState, formData: FormData): Promis
   const data = { refNo, source, destination, cargoWeightKg, plannedKm, revenue, vehicleId, driverId };
 
   if (dispatchNow) {
+    const check = parseChecklist(formData);
+    if ("error" in check) return check;
     await prisma.$transaction([
       prisma.trip.create({
-        data: { ...data, status: "DISPATCHED", dispatchedAt: new Date(), startOdometerKm: vehicle.odometerKm },
+        data: {
+          ...data,
+          status: "DISPATCHED",
+          dispatchedAt: new Date(),
+          startOdometerKm: vehicle.odometerKm,
+          checklist: check.checklist,
+        },
       }),
       prisma.vehicle.update({ where: { id: vehicleId }, data: { status: "ON_TRIP" } }),
       prisma.driver.update({ where: { id: driverId }, data: { status: "ON_TRIP" } }),
@@ -90,10 +89,18 @@ export async function dispatchTrip(_prev: ActionState, formData: FormData): Prom
   const violation = assertDispatchable(trip.vehicle, trip.driver, trip.cargoWeightKg);
   if (violation) return { error: violation };
 
+  const check = parseChecklist(formData);
+  if ("error" in check) return check;
+
   await prisma.$transaction([
     prisma.trip.update({
       where: { id },
-      data: { status: "DISPATCHED", dispatchedAt: new Date(), startOdometerKm: trip.vehicle.odometerKm },
+      data: {
+        status: "DISPATCHED",
+        dispatchedAt: new Date(),
+        startOdometerKm: trip.vehicle.odometerKm,
+        checklist: check.checklist,
+      },
     }),
     prisma.vehicle.update({ where: { id: trip.vehicleId }, data: { status: "ON_TRIP" } }),
     prisma.driver.update({ where: { id: trip.driverId }, data: { status: "ON_TRIP" } }),
@@ -107,6 +114,8 @@ export async function completeTrip(_prev: ActionState, formData: FormData): Prom
   const endOdometerKm = Number(formData.get("endOdometerKm"));
   const fuelUsedL = Number(formData.get("fuelUsedL"));
   const fuelCost = Number(formData.get("fuelCost") ?? 0);
+  const podReceiver = String(formData.get("podReceiver") ?? "").trim();
+  const podNote = String(formData.get("podNote") ?? "").trim();
 
   const trip = await prisma.trip.findUnique({ where: { id }, include: { vehicle: true } });
   if (!trip) return { error: "Trip not found." };
@@ -120,7 +129,14 @@ export async function completeTrip(_prev: ActionState, formData: FormData): Prom
   await prisma.$transaction([
     prisma.trip.update({
       where: { id },
-      data: { status: "COMPLETED", completedAt: new Date(), endOdometerKm, fuelUsedL },
+      data: {
+        status: "COMPLETED",
+        completedAt: new Date(),
+        endOdometerKm,
+        fuelUsedL,
+        podReceiver: podReceiver || null,
+        podNote: podNote || null,
+      },
     }),
     prisma.vehicle.update({
       where: { id: trip.vehicleId },

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -65,6 +65,9 @@ model Vehicle {
   maintenance  MaintenanceLog[]
   fuelLogs     FuelLog[]
   expenses     Expense[]
+
+  @@index([status])
+  @@index([type, region])
 }
 
 model Driver {
@@ -79,6 +82,9 @@ model Driver {
   createdAt       DateTime     @default(now())
 
   trips Trip[]
+
+  @@index([status])
+  @@index([licenseExpiry])
 }
 
 model Trip {
@@ -96,11 +102,21 @@ model Trip {
   dispatchedAt    DateTime?
   completedAt     DateTime?
   createdAt       DateTime   @default(now())
+  // Proof of delivery, captured at completion
+  podReceiver     String?
+  podNote         String?
+  // Pre-dispatch vehicle check items confirmed by the dispatcher
+  checklist       String?
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
   driverId  String
   driver    Driver  @relation(fields: [driverId], references: [id])
+
+  @@index([status])
+  @@index([vehicleId, status])
+  @@index([driverId, status])
+  @@index([createdAt])
 }
 
 model MaintenanceLog {
@@ -114,6 +130,8 @@ model MaintenanceLog {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, status])
 }
 
 model FuelLog {
@@ -125,6 +143,8 @@ model FuelLog {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, date])
 }
 
 model Expense {
@@ -136,4 +156,6 @@ model Expense {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, date])
 }

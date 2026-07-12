@@ -7,7 +7,8 @@ const secret = new TextEncoder().encode(
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (pathname === "/login") return NextResponse.next();
+  // Public routes: login and the customer-facing tracking page
+  if (pathname === "/login" || pathname.startsWith("/track/")) return NextResponse.next();
 
   const token = req.cookies.get("transitops_session")?.value;
   if (token) {
