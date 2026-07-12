@@ -3,9 +3,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
 
-const secret = new TextEncoder().encode(
-  process.env.SESSION_SECRET ?? "transitops-dev-secret-change-me"
-);
+// Fail fast rather than fall back to a guessable default: a known secret
+// would let anyone forge a session token for any role.
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET is not set. Add it to .env before starting the app.");
+}
+const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
 
 export type Session = {
   userId: string;

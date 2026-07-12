@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(
-  process.env.SESSION_SECRET ?? "transitops-dev-secret-change-me"
-);
+// Fail fast rather than fall back to a guessable default: a known secret
+// would let anyone forge a session token for any role.
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET is not set. Add it to .env before starting the app.");
+}
+const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
