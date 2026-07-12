@@ -4,17 +4,56 @@ import { createVehicle, setVehicleStatus, deleteVehicle } from "@/lib/actions/ve
 import ActionForm from "@/components/ActionForm";
 import { PageHeader, StatusBadge, Table, Th, Td, Card, inputCls, btnPrimary, btnGhost, btnDanger } from "@/components/ui";
 import { inr } from "@/lib/format";
+import { SearchBar } from "@/components/SearchSort";
 
 export const metadata = { title: "Vehicles — TransitOps" };
 
-export default async function VehiclesPage() {
+export default async function VehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; sort?: string }>;
+}) {
   const session = await requireSession();
   const writable = canWrite(session.role, "vehicles");
-  const vehicles = await prisma.vehicle.findMany({ orderBy: { registrationNo: "asc" } });
+  const { q, sort } = await searchParams;
+
+  const orderBy =
+    sort === "odometer"
+      ? { odometerKm: "desc" as const }
+      : sort === "capacity"
+        ? { maxLoadKg: "desc" as const }
+        : sort === "cost"
+          ? { acquisitionCost: "desc" as const }
+          : { registrationNo: "asc" as const };
+
+  const vehicles = await prisma.vehicle.findMany({
+    where: q
+      ? {
+          OR: [
+            { registrationNo: { contains: q, mode: "insensitive" } },
+            { name: { contains: q, mode: "insensitive" } },
+            { type: { contains: q, mode: "insensitive" } },
+            { region: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : undefined,
+    orderBy,
+  });
 
   return (
     <>
-      <PageHeader title="Vehicle Registry" subtitle={`${vehicles.length} vehicles in the fleet`} />
+      <PageHeader title="Vehicle Registry" subtitle={`${vehicles.length} vehicles${q ? ` matching “${q}”` : " in the fleet"}`} />
+      <SearchBar
+        placeholder="Search registration, name, type, region…"
+        q={q}
+        sort={sort}
+        basePath="/vehicles"
+        sortOptions={[
+          { value: "odometer", label: "highest odometer" },
+          { value: "capacity", label: "largest capacity" },
+          { value: "cost", label: "highest acquisition cost" },
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">

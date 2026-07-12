@@ -2,6 +2,8 @@ import { requireSession } from "@/lib/auth";
 import { getFleetSummary } from "@/lib/reports";
 import { PageHeader, KpiCard, Table, Th, Td, StatusBadge } from "@/components/ui";
 import { inr } from "@/lib/format";
+import BarChart from "@/components/BarChart";
+import PrintButton from "@/components/PrintButton";
 
 export const metadata = { title: "Reports — TransitOps" };
 
@@ -15,12 +17,15 @@ export default async function ReportsPage() {
   return (
     <>
       <PageHeader title="Reports & Analytics" subtitle="Per-vehicle efficiency, cost and return on investment">
-        <a
-          href="/api/reports/csv"
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Export CSV
-        </a>
+        <div className="no-print flex gap-2">
+          <PrintButton />
+          <a
+            href="/api/reports/csv"
+            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Export CSV
+          </a>
+        </div>
       </PageHeader>
 
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -28,6 +33,27 @@ export default async function ReportsPage() {
         <KpiCard label="Fleet Fuel Efficiency" value={`${fleetEfficiency} km/L`} sub="completed-trip distance / fuel" />
         <KpiCard label="Total Operational Cost" value={inr.format(totalOperationalCost)} sub="fuel + maintenance" />
         <KpiCard label="Total Revenue" value={inr.format(totalRevenue)} accent="text-emerald-600" />
+      </div>
+
+      <div className="mb-8 grid gap-4 md:grid-cols-2">
+        <BarChart
+          title="Operational Cost per Vehicle (Fuel + Maintenance)"
+          color="bg-amber-500"
+          bars={rows
+            .filter((r) => r.operationalCost > 0)
+            .map((r) => ({ label: r.registrationNo, value: r.operationalCost, display: inr.format(r.operationalCost) }))}
+        />
+        <BarChart
+          title="Fuel Efficiency per Vehicle (km/L)"
+          color="bg-emerald-500"
+          bars={rows
+            .filter((r) => r.fuelEfficiencyKmPerL != null)
+            .map((r) => ({
+              label: r.registrationNo,
+              value: r.fuelEfficiencyKmPerL as number,
+              display: `${(r.fuelEfficiencyKmPerL as number).toFixed(1)} km/L`,
+            }))}
+        />
       </div>
 
       <Table>

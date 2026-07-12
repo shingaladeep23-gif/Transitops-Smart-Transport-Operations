@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { logout } from "@/lib/actions/auth";
 import { ROLE_LABELS } from "@/lib/format";
 import NavLinks from "@/components/NavLinks";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -15,6 +16,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <NavLinks />
         <div className="mt-auto border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <div className="mb-3 px-2">
+            <ThemeToggle />
+          </div>
           <div className="px-2 text-sm font-medium">{session.name}</div>
           <div className="px-2 text-xs text-zinc-500">{ROLE_LABELS[session.role]}</div>
           <form action={logout} className="mt-3 px-2">
@@ -28,9 +32,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/" className="text-lg font-bold">
             Transit<span className="text-blue-600">Ops</span>
           </Link>
-          <form action={logout}>
-            <button className="text-xs font-medium text-red-600 dark:text-red-400">Sign out</button>
-          </form>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <form action={logout}>
+              <button className="text-xs font-medium text-red-600 dark:text-red-400">Sign out</button>
+            </form>
+          </div>
         </header>
         <div className="border-b border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900 md:hidden">
           <NavLinks horizontal />
